@@ -1,0 +1,13 @@
+Gator Lib
+Copyright (C) 2018-2026 Sergio Basurto Juárez
+
+This product includes a Base64 encoder/decoder originally written by
+Christian d'Heureuse, Inventec Informatik AG, Switzerland, Copyright 2003,
+and distributed under the GNU Lesser General Public License (LGPL).
+The original attribution and license notice are preserved in
+src/gator/lib/sec/GappBase64.java.
+
+src/gator/lib/sec/GappHexDecoder.java contains code attributed to Werner
+Guttmann, Copyright 2007, under the Apache License, Version 2.0. Its original
+notice is preserved in that source file.
+

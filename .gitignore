@@ -1,0 +1,10 @@
+.gradle/
+build/
+dist/
+logs/
+nbproject/private/
+*.class
+*.log
+.idea/
+*.iml
+

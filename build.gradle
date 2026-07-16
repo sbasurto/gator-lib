@@ -1,0 +1,43 @@
+plugins {
+    id 'java-library'
+}
+
+group = 'gator.lib'
+version = '1.0.0-SNAPSHOT'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+    withSourcesJar()
+}
+
+sourceSets.main.java.srcDir 'src'
+sourceSets.test.java.srcDir 'test'
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    api 'gator.lib:gator-lib-utils:1.0.0-SNAPSHOT'
+    api 'com.google.code.gson:gson:2.11.0'
+    api 'com.googlecode.gettext-commons:gettext-commons:0.9.8'
+
+    implementation 'org.postgresql:postgresql:42.7.7'
+    implementation 'com.oracle.database.jdbc:ojdbc11:23.9.0.25.07'
+    implementation 'com.google.zxing:core:3.5.3'
+    implementation 'com.google.zxing:javase:3.5.3'
+    implementation 'com.singingbush:barcode4j:2.4.0'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.13.4'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
