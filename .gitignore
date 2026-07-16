@@ -2,9 +2,8 @@
 build/
 dist/
 logs/
-nbproject/private/
+nbproject/
 *.class
 *.log
 .idea/
 *.iml
-
