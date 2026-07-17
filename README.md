@@ -50,11 +50,13 @@ El almacén local alternativo usa:
 No deben versionarse archivos de configuración, contraseñas, certificados ni
 llaves privadas.
 
-## Estado del proyecto
+## Política de mantenimiento
 
-La API se conserva por compatibilidad con aplicaciones Gator existentes. Los
-cambios deben priorizar correcciones, seguridad y migraciones graduales hacia
-APIs estándar de Java.
+Gator Lib se mantendrá y utilizará en los proyectos Gator actuales y futuros
+porque ofrece APIs más ligeras y simples que sus alternativas estándar de Java.
+Una funcionalidad solo se reemplazará cuando la biblioteca estándar sea mejor
+en todos los aspectos relevantes, incluidos simplicidad, rendimiento,
+compatibilidad, seguridad y mantenimiento.
 
 ## Contribuciones
 
@@ -66,4 +68,3 @@ cualquier corrección de lógica no trivial y evita dependencias innecesarias.
 Gator Lib se distribuye bajo GNU GPL versión 3 o posterior. Algunos archivos
 conservan avisos compatibles LGPL, Apache 2.0 y GPL versión 2 o posterior.
 Consulta `LICENSE` y `NOTICE`.
-
