@@ -558,7 +558,6 @@ public class ADO {
 	 */
 	private void startPool4DBKind() {
 		try {
-                        System.setProperty("javax.sql.DataSource.Factory", "org.apache.commons.dbcp2.BasicDataSourceFactory");
 			InitialContext cxt = new InitialContext();
 			DataSource ds = (DataSource) cxt.lookup( "java:/comp/env/" + this.adoDBConfigFile.getSID() );
 			Class.forName("org.postgresql.Driver");
