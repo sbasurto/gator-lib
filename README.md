@@ -50,6 +50,33 @@ El almacén local alternativo usa:
 No deben versionarse archivos de configuración, contraseñas, certificados ni
 llaves privadas.
 
+### Diagnóstico de parámetros SQL
+
+Por defecto los logs muestran la consulta o procedimiento y la cantidad de
+parámetros, pero no sus valores. Para imprimir temporalmente la llamada completa
+con todos sus valores, inicia la JVM con:
+
+```bash
+-Dgator.db.logParameters=true
+```
+
+En Tomcat agrégalo a `bin/setenv.sh` y reinicia el servidor:
+
+```bash
+export CATALINA_OPTS="$CATALINA_OPTS -Dgator.db.logParameters=true"
+```
+
+Para ejecutar un JAR:
+
+```bash
+java -Dgator.db.logParameters=true -jar aplicacion.jar
+```
+
+Desactívalo eliminando la opción o usando
+`-Dgator.db.logParameters=false`, y reinicia la JVM. El valor `true` registra
+también contraseñas, tokens, identificadores y objetos de sesión; úsalo sólo
+durante el diagnóstico y protege o elimina los logs resultantes.
+
 ## Política de mantenimiento
 
 Gator Lib se mantendrá y utilizará en los proyectos Gator actuales y futuros

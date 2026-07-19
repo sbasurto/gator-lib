@@ -94,6 +94,7 @@ public class GappSQLStatement {
                 this.storeNoRep.add("app_fn_get_impresoras");
                 this.storeNoRep.add("app_fn_get_reporte");
                 this.storeNoRep.add("app_fn_get_pool");
+                this.storeNoRep.add("app_fn_admon_session");
         }
         
         /**
@@ -187,7 +188,6 @@ public class GappSQLStatement {
                 int numOfParams = 2;
                 logs.logIt("setParameters", this.inParams.size() + "",  "GappSQLStatement", "GappSQLStatement", 0);
                 for(String param: this.inParams) {
-                        logs.logIt("setParameters", numOfParams + ":" + param,  "GappSQLStatement", "GappSQLStatement", 0);
                         statement.setString(numOfParams, param);
                         numOfParams++;
                 }
@@ -327,6 +327,17 @@ public class GappSQLStatement {
          */
         public String getQueryStr() {
                 return !this.getStoreProcedure().isBlank()?this.getStoreStr():this.getQueryForShow();
+        }
+
+        /**
+         * Returns the query shape by default or the complete statement when explicitly enabled.
+         * Enable parameter diagnostics with {@code -Dgator.db.logParameters=true}.
+         * @return Safe statement description for logs.
+         */
+        public String getQueryStrForLog() {
+                return Boolean.getBoolean("gator.db.logParameters")
+                        ? getQueryStr()
+                        : this.getQuery() + " [parameters=" + this.inParams.size() + "]";
         }
         /**
          * Returns the query ready for printing.

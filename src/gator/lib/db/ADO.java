@@ -348,7 +348,6 @@ public class ADO {
 		}catch(Exception e){
 			logs.logIt(this.getClass().getCanonicalName(),"Fallo ejecuccion: " + logs.getStackTraceString(e) ,  "ADO", "execStore", 0);
 			logs.logIt(this.getClass().getCanonicalName(),"sentencia: " + gappSQLStmt.getQuery(),  "ADO", "execStore", 0);
-                        logs.logIt(this.getClass().getCanonicalName(),"sentencia as str: " + gappSQLStmt.getQueryStr(),  "ADO", "execStore", 0);
 			return "-1";
 		}
 	}
@@ -387,7 +386,6 @@ public class ADO {
 		}catch(Exception e){
 			logs.logIt(this.getClass().getCanonicalName(),"Fallo ejecuccion: " + logs.getStackTraceString(e) ,  "ADO", "execStore", 0);
 			logs.logIt(this.getClass().getCanonicalName(),"sentencia: " + gappSQLStmt.getQuery(),  "ADO", "execStore", 0);
-                        logs.logIt(this.getClass().getCanonicalName(),"sentencia as str: " + gappSQLStmt.getQueryStr(),  "ADO", "execStore", 0);
 			return "-1";
 		}
 	}

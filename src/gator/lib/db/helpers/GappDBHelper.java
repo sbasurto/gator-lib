@@ -64,8 +64,7 @@ public class GappDBHelper {
      */
     public String executeStore (GappSQLStatement gappSQLStmt) {                
         String dbOut = ado.execStore(gappSQLStmt);
-        logs.logIt(this.getClass().getCanonicalName(), "Parameters sended: " + gappSQLStmt.getQueryStr(), "security", "executeStore", 0);
-        logs.logIt(this.getClass().getCanonicalName(), dbOut, "securty", "executeStore", 0);
+        logs.logIt(this.getClass().getCanonicalName(), "Executed: " + gappSQLStmt.getQueryStrForLog(), "security", "executeStore", 0);
         ado.close();
         return dbOut;
     }            
@@ -78,15 +77,14 @@ public class GappDBHelper {
      */
     public synchronized String executeStoreSync (GappSQLStatement gappSQLStmt) {                
         String dbOut = ado.execStore(gappSQLStmt);
-        logs.logIt(this.getClass().getCanonicalName(), "Parameters sended: " + gappSQLStmt.getQueryStr(), "security", "executeStore", 0);
-        logs.logIt(this.getClass().getCanonicalName(), dbOut, "securty", "executeStore", 0);
+        logs.logIt(this.getClass().getCanonicalName(), "Executed: " + gappSQLStmt.getQueryStrForLog(), "security", "executeStore", 0);
         ado.close();
         return dbOut;
     }
     public ArrayList<HashMap<String, String>> execute (GappSQLStatement gappSQLStmt) {                
         ado.executePreparedStmt(gappSQLStmt);
         ArrayList<HashMap<String, String>> res = ado.getResult2();
-        logs.logIt(this.getClass().getCanonicalName(), "Parameters sended: " + gappSQLStmt.getQueryStr(), "security", "executeStore", 0);        
+        logs.logIt(this.getClass().getCanonicalName(), "Executed: " + gappSQLStmt.getQueryStrForLog(), "security", "execute", 0);
         ado.close();
         return res;
     }
