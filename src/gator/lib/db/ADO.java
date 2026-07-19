@@ -158,8 +158,7 @@ public class ADO {
 		GappFiles gappFiles = new GappFiles();
 		GappUIHelper uiHelper = new GappUIHelper();
 		gappIndexFile = uiHelper.getIndexConfig2(gappConfigFile, "anonymous");
-		String json = gappIndexFile.getJson();
-		logs.logIt("ADO", "Db info (1):" + json,  "ADO", "ADO", 0);
+		logs.logIt("ADO", "Db index configuration loaded",  "ADO", "ADO", 0);
 		logs.logIt("ADO", "Db info (2):" + gappIndexFile.getConfigurationFile(),  "ADO", "ADO", 0);
 		gappFiles.setDir(GappFiles.CONF_DIR);
 		gappFiles.readFromFile(GappFiles.CONF_DIR + gappIndexFile.getConfigurationFile(), "UTF-8");
