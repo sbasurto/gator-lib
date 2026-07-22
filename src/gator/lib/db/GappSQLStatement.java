@@ -86,6 +86,7 @@ public class GappSQLStatement {
                 this.storeNoRep.add("app_fn_get_submenus2_1");
                 this.storeNoRep.add("app_fn_get_submenus2_1");
                 this.storeNotLike.add("fn_scr_get");
+                this.storeNotLike.add("mail_fn_");
                 this.storeNoRep.add("sec_fn_get_usuario");
                 this.storeNoRep.add("app_fn_get_usuario_info");
                 this.storeNoRep.add("app_fn_get_menus");
