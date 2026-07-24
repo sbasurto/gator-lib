@@ -330,6 +330,9 @@ public class ADO {
                                 startPool4DBKind();
                         }
                         gappSQLStmt.setDbKind(adoDBConfigFile.getDbKind());
+                        logs.logIt(this.getClass().getCanonicalName(),
+                                "Ejecutando: " + gappSQLStmt.getQueryStr(),
+                                "ADO", "execStore", 0);
 			CallableStatement stmtCallable = this.connection.prepareCall(gappSQLStmt.getQuery());
                         stmtCallable = gappSQLStmt.registerOutParams(stmtCallable);
 			stmtCallable = gappSQLStmt.setParameters(stmtCallable);
@@ -368,6 +371,9 @@ public class ADO {
                                 startPool4DBKind();
                         }
                         gappSQLStmt.setDbKind(adoDBConfigFile.getDbKind());
+                        logs.logIt(this.getClass().getCanonicalName(),
+                                "Ejecutando: " + gappSQLStmt.getQueryStr(),
+                                "ADO", "execStoreSync", 0);
 			CallableStatement stmtCallable = this.connection.prepareCall(gappSQLStmt.getQuery());
                         stmtCallable = gappSQLStmt.registerOutParams(stmtCallable);
 			stmtCallable = gappSQLStmt.setParameters(stmtCallable);
