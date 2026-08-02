@@ -33,8 +33,9 @@ import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import javax.naming.InitialContext;
 import javax.sql.DataSource;
 
@@ -93,7 +94,18 @@ public class ADO {
 
         private GappIndexFile gappIndexFile;
 
-        ExecutorService executionPool;
+        private static final ThreadPoolExecutor REPLICATION_POOL = new ThreadPoolExecutor(
+                0,
+                4,
+                60,
+                TimeUnit.SECONDS,
+                new SynchronousQueue<>(),
+                runnable -> {
+                        Thread thread = new Thread(runnable, "gator-db-replication");
+                        thread.setDaemon(true);
+                        return thread;
+                },
+                new ThreadPoolExecutor.CallerRunsPolicy());
 
 	/**
 	 * Initialize the ADO object with database parameters.
@@ -111,7 +123,6 @@ public class ADO {
 		adoDBConfigFile.setDBKind(dbKind);
 		adoDBConfigFile.setServerName(user);
 		adoDBConfigFile.setSecret(secret);
-                startExecutionPool();
 	}
 
 	/**
@@ -164,7 +175,6 @@ public class ADO {
 		gappFiles.readFromFile(GappFiles.CONF_DIR + gappIndexFile.getConfigurationFile(), "UTF-8");
 		String dbJson = gappFiles.getReadedLinesAsString();
 		adoDBConfigFile = gson.fromJson(dbJson, GappDBConfFile.class);
-                startExecutionPool();
 		logs.logIt("GappJNDIRealm.setJndiDataSourceName", "Db info (3):" + adoDBConfigFile.getSID(),  "ADO", "ADO", 0);
 		logs.logIt("GappJNDIRealm.setJndiDataSourceName", "Db info (4):" + adoDBConfigFile.getServerName(),  "ADO", "ADO", 0);
 	}
@@ -198,7 +208,6 @@ public class ADO {
 		gappFiles.readFromFile(GappFiles.CONF_DIR + dbConfFile, "UTF-8");
 		String dbJson = gappFiles.getReadedLinesAsString();
 		adoDBConfigFile = gson.fromJson(dbJson, GappDBConfFile.class);
-                startExecutionPool();
 		logs.logIt("GappJNDIRealm.setJndiDataSourceName", "Db info (3):" + adoDBConfigFile.getSID(),  "ADO", "ADO", 0);
 		logs.logIt("GappJNDIRealm.setJndiDataSourceName", "Db info (4):" + adoDBConfigFile.getServerName(),  "ADO", "ADO", 0);
 	}
@@ -243,7 +252,7 @@ public class ADO {
                         prep.close();
                         resultSet.close();
 			if(gappSQLStmt.isReplicable()) {
-                        	executionPool.execute(() -> {
+	                        REPLICATION_POOL.execute(() -> {
                             		replicatePreparedStmt(gappSQLStmt);
                         	});
 			}
@@ -342,7 +351,7 @@ public class ADO {
 				stmtCallable.close();
 			}
                         if(gappSQLStmt.isStoreReplicable()) {
-                                executionPool.execute(() -> {
+                                REPLICATION_POOL.execute(() -> {
                                         replicateStore(gappSQLStmt);
                                 });
                         }
@@ -383,7 +392,7 @@ public class ADO {
 				stmtCallable.close();
 			}
                         if(gappSQLStmt.isStoreReplicable()) {
-                                executionPool.execute(() -> {
+                                REPLICATION_POOL.execute(() -> {
                                         replicateStore(gappSQLStmt);
                                 });
                         }
@@ -421,7 +430,7 @@ public class ADO {
 				stmtCallable.close();
 			}
                         if(gappSQLStmt.isStoreReplicable()) {
-                                executionPool.execute(() -> {
+                                REPLICATION_POOL.execute(() -> {
                                         replicateStore(gappSQLStmt);
                                 });
                         }
@@ -481,13 +490,7 @@ public class ADO {
                         logs.logIt("startPool4DBKind", "CLOSE CONNECTION (" + connUUID + ")",  "ADO", "close", 0);
 		}catch(Exception e){
 			logs.logIt(this.getClass().getCanonicalName(),"Al cerrar conexion: " + logs.getStackTraceString(e) ,  "ADO", "close", 0);
-		} finally {
-			executionPool.shutdown();
 		}
-	}
-
-	private void startExecutionPool() {
-		if (executionPool == null || executionPool.isShutdown()) executionPool = Executors.newSingleThreadExecutor();
 	}
 
 	/**
@@ -566,7 +569,6 @@ public class ADO {
 	 * a normal connection to the database and wont print the exception in logs if debug level is under 200.
 	 */
 	private void startPool4DBKind() {
-		startExecutionPool();
 		try {
 			InitialContext cxt = new InitialContext();
 			DataSource ds = (DataSource) cxt.lookup( "java:/comp/env/" + this.adoDBConfigFile.getSID() );
