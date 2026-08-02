@@ -111,7 +111,7 @@ public class ADO {
 		adoDBConfigFile.setDBKind(dbKind);
 		adoDBConfigFile.setServerName(user);
 		adoDBConfigFile.setSecret(secret);
-                executionPool = Executors.newFixedThreadPool(6000);
+                startExecutionPool();
 	}
 
 	/**
@@ -164,7 +164,7 @@ public class ADO {
 		gappFiles.readFromFile(GappFiles.CONF_DIR + gappIndexFile.getConfigurationFile(), "UTF-8");
 		String dbJson = gappFiles.getReadedLinesAsString();
 		adoDBConfigFile = gson.fromJson(dbJson, GappDBConfFile.class);
-                executionPool = Executors.newFixedThreadPool(6000);
+                startExecutionPool();
 		logs.logIt("GappJNDIRealm.setJndiDataSourceName", "Db info (3):" + adoDBConfigFile.getSID(),  "ADO", "ADO", 0);
 		logs.logIt("GappJNDIRealm.setJndiDataSourceName", "Db info (4):" + adoDBConfigFile.getServerName(),  "ADO", "ADO", 0);
 	}
@@ -198,7 +198,7 @@ public class ADO {
 		gappFiles.readFromFile(GappFiles.CONF_DIR + dbConfFile, "UTF-8");
 		String dbJson = gappFiles.getReadedLinesAsString();
 		adoDBConfigFile = gson.fromJson(dbJson, GappDBConfFile.class);
-                executionPool = Executors.newFixedThreadPool(6000);
+                startExecutionPool();
 		logs.logIt("GappJNDIRealm.setJndiDataSourceName", "Db info (3):" + adoDBConfigFile.getSID(),  "ADO", "ADO", 0);
 		logs.logIt("GappJNDIRealm.setJndiDataSourceName", "Db info (4):" + adoDBConfigFile.getServerName(),  "ADO", "ADO", 0);
 	}
@@ -481,7 +481,13 @@ public class ADO {
                         logs.logIt("startPool4DBKind", "CLOSE CONNECTION (" + connUUID + ")",  "ADO", "close", 0);
 		}catch(Exception e){
 			logs.logIt(this.getClass().getCanonicalName(),"Al cerrar conexion: " + logs.getStackTraceString(e) ,  "ADO", "close", 0);
+		} finally {
+			executionPool.shutdown();
 		}
+	}
+
+	private void startExecutionPool() {
+		if (executionPool == null || executionPool.isShutdown()) executionPool = Executors.newSingleThreadExecutor();
 	}
 
 	/**
@@ -560,6 +566,7 @@ public class ADO {
 	 * a normal connection to the database and wont print the exception in logs if debug level is under 200.
 	 */
 	private void startPool4DBKind() {
+		startExecutionPool();
 		try {
 			InitialContext cxt = new InitialContext();
 			DataSource ds = (DataSource) cxt.lookup( "java:/comp/env/" + this.adoDBConfigFile.getSID() );
