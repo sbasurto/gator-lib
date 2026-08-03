@@ -35,6 +35,11 @@ public class GappIndexFile {
      * Name that should be displayed in login screen.
      */
     private String nameToDisplay = "";
+
+    /**
+     * Optional client logo shown before authentication.
+     */
+    private String clientLogo = "";
     
     /**
      * The key store to use for encryption.
@@ -113,6 +118,14 @@ public class GappIndexFile {
      */
     public String getNameToDisplay() {
         return nameToDisplay;
+    }
+
+    public void setClientLogo(String clientLogo) {
+        this.clientLogo = clientLogo;
+    }
+
+    public String getClientLogo() {
+        return clientLogo == null ? "" : clientLogo;
     }
     
     /**
@@ -275,7 +288,7 @@ public class GappIndexFile {
      * @return JSON for this index file.
      */
     public String getSimplifiedJson() {
-            return "{\"file\":\"" + this.getFile() + "\", \"nameToDisplay\":\"" + this.getNameToDisplay() + "\", \"system\":\"" + this.getSystem() + "\", \"language\":\"" + this.getLanguage() + "\", \"files\":[], \"pkeyusr\":\"" + this.getPublicKeyUser() + "\", \"pkeysecret\":\"" + this.getPublicKeyPass() + "\", \"conff\":\"" + this.getConfigurationFile() + "\", \"replicas\": " + this.getReplicasAsString() + "}";
+            return "{\"file\":\"" + this.getFile() + "\", \"nameToDisplay\":\"" + this.getNameToDisplay() + "\", \"clientLogo\":\"" + this.getClientLogo() + "\", \"system\":\"" + this.getSystem() + "\", \"language\":\"" + this.getLanguage() + "\", \"files\":[], \"pkeyusr\":\"" + this.getPublicKeyUser() + "\", \"pkeysecret\":\"" + this.getPublicKeyPass() + "\", \"conff\":\"" + this.getConfigurationFile() + "\", \"replicas\": " + this.getReplicasAsString() + "}";
     }
     /**
      * Write the last values to configuration file.
