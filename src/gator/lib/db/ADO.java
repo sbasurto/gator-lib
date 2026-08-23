@@ -31,13 +31,17 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import javax.naming.InitialContext;
 import javax.sql.DataSource;
+import org.postgresql.PGConnection;
 
 /**
  * ADO is the class that allow access to different types of databases
@@ -491,6 +495,28 @@ public class ADO {
 		}catch(Exception e){
 			logs.logIt(this.getClass().getCanonicalName(),"Al cerrar conexion: " + logs.getStackTraceString(e) ,  "ADO", "close", 0);
 		}
+	}
+
+	/**
+	 * Streams a read-only query using PostgreSQL's native CSV encoder.
+	 * @param query SELECT query to export.
+	 * @param output Destination stream.
+	 * @return Number of rows copied.
+	 * @throws java.io.IOException If the output cannot be written.
+	 * @throws java.sql.SQLException If PostgreSQL rejects the query.
+	 */
+	public long copyToCsv(String query, OutputStream output) throws IOException, java.sql.SQLException {
+		String normalized = query == null ? "" : query.strip();
+		String lower = normalized.toLowerCase(Locale.ROOT);
+		if (!(lower.startsWith("select ") || lower.startsWith("with "))) {
+			throw new IllegalArgumentException("CSV reports require a SELECT or WITH query");
+		}
+		if (this.connection == null) startPool4DBKind();
+		if (this.connection == null) throw new java.sql.SQLException("Database connection is not available");
+		this.connection.setReadOnly(true);
+		PGConnection postgres = this.connection.unwrap(PGConnection.class);
+		return postgres.getCopyAPI().copyOut(
+				"COPY (" + normalized + ") TO STDOUT WITH (FORMAT CSV, HEADER, ENCODING 'UTF8')", output);
 	}
 
 	/**

@@ -22,6 +22,9 @@ import gator.lib.db.GappSQLStatement;
 import gator.lib.logs.GappLogging;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.sql.SQLException;
 
 /**
  *  This class contains the helpers needed for db actions.
@@ -46,7 +49,7 @@ public class GappDBHelper {
     public GappDBHelper(String fileName) {            
             ado = new ADO(fileName);
     }    
-    
+
     /**
      * Set configuration data for db as JSON.
      * 
@@ -87,5 +90,21 @@ public class GappDBHelper {
         logs.logIt(this.getClass().getCanonicalName(), "Executed: " + gappSQLStmt.getQueryStrForLog(), "security", "execute", 0);
         ado.close();
         return res;
+    }
+
+    /**
+     * Streams a query as RFC-compatible UTF-8 CSV using PostgreSQL COPY.
+     * @param query SELECT query to export.
+     * @param output Destination stream.
+     * @return Number of rows copied.
+     * @throws IOException If the output cannot be written.
+     * @throws SQLException If PostgreSQL rejects the query.
+     */
+    public long copyToCsv(String query, OutputStream output) throws IOException, SQLException {
+        try {
+            return ado.copyToCsv(query, output);
+        } finally {
+            ado.close();
+        }
     }
 }
