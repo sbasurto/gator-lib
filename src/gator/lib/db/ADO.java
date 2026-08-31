@@ -100,7 +100,7 @@ public class ADO {
 
         private static final ThreadPoolExecutor REPLICATION_POOL = new ThreadPoolExecutor(
                 0,
-                60,
+                100,
                 60,
                 TimeUnit.SECONDS,
                 new SynchronousQueue<>(),

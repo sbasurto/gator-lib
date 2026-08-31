@@ -17,14 +17,14 @@ class TestADOReplicationPool {
     void boundsTenThousandTasksWithBackpressureAndExpires() throws Exception {
         ThreadPoolExecutor pool = replicationPool();
         assertEquals(0, pool.getCorePoolSize());
-        assertEquals(60, pool.getMaximumPoolSize());
+        assertEquals(100, pool.getMaximumPoolSize());
         assertEquals(60, pool.getKeepAliveTime(TimeUnit.SECONDS));
         assertTrue(pool.getRejectedExecutionHandler() instanceof ThreadPoolExecutor.CallerRunsPolicy);
 
-        CountDownLatch started = new CountDownLatch(60);
+        CountDownLatch started = new CountDownLatch(100);
         CountDownLatch release = new CountDownLatch(1);
         AtomicBoolean daemonWorkers = new AtomicBoolean(true);
-        for(int i = 0; i < 60; i++) {
+        for(int i = 0; i < 100; i++) {
             pool.execute(() -> {
                 daemonWorkers.compareAndSet(true,
                         Thread.currentThread().isDaemon()
@@ -37,13 +37,13 @@ class TestADOReplicationPool {
 
         Thread caller = Thread.currentThread();
         AtomicInteger callerRuns = new AtomicInteger();
-        for(int i = 60; i < 10_000; i++) {
+        for(int i = 100; i < 10_000; i++) {
             pool.execute(() -> {
                 if(Thread.currentThread() == caller) callerRuns.incrementAndGet();
             });
         }
-        assertEquals(9_940, callerRuns.get());
-        assertEquals(60, pool.getLargestPoolSize());
+        assertEquals(9_900, callerRuns.get());
+        assertEquals(100, pool.getLargestPoolSize());
         assertTrue(daemonWorkers.get());
 
         release.countDown();
