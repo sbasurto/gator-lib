@@ -39,14 +39,21 @@ public class CookieMonster {
         public GappCookie eatCookie(String rawCookiesJar, String nameToSearch) {
                 GappCookie gappCookie = new GappCookie();
                 logs.logIt("CookieMonster", "Digesting cookies jar: (" + rawCookiesJar + ")", "gapps", "gappcookies", 0);
+                if (rawCookiesJar == null || nameToSearch == null) return gappCookie;
                 String []cookiesJar = rawCookiesJar.split(";");
                 for (String cookie : cookiesJar) {
-                        String []cookieNameVal = cookie.split("=");
-                        if(cookieNameVal[0].contains(nameToSearch)) {
-                                Gson gson = new Gson();
-                                logs.logIt("CookieMonster", "Digested cookie: (" + cookieNameVal[1] + ")", "gapps", "gappcookies", 0);
-                                gappCookie = gson.fromJson(cookieNameVal[1], GappCookie.class);
-                                return gappCookie;
+                        int separator = cookie.indexOf('=');
+                        if(separator > 0 && cookie.substring(0, separator).trim().equals(nameToSearch)) {
+                                String value = cookie.substring(separator + 1);
+                                logs.logIt("CookieMonster", "Digested cookie: (" + value + ")", "gapps", "gappcookies", 0);
+                                if(value.startsWith("{")) {
+                                        try {
+                                                return new Gson().fromJson(value, GappCookie.class);
+                                        } catch (RuntimeException ignored) {
+                                                // A malformed client cookie is still a plain cookie value.
+                                        }
+                                }
+                                return new GappCookie(nameToSearch, value);
                         }
                 }
                 return gappCookie;
