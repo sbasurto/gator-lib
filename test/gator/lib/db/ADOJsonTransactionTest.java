@@ -95,6 +95,19 @@ public class ADOJsonTransactionTest {
         assertOrder("rollback", "auto:true", "close");
     }
 
+    @Test void duplicateObjectKeysAreRejectedBeforeCallerValidationAndCommit() {
+        for (String value : List.of("{\"code\":\"77\",\"code\":\"0\"}",
+                "{\"responses\":[{\"code\":\"77\",\"code\":\"0\"}]}",
+                "{\"code\":\"77\",\"\\u0063ode\":\"0\"}")) {
+            jdbc = new RecordingJdbc();
+            jdbc.json = value;
+            assertThrows(SQLException.class, () -> database().executeJsonTransaction(statement(), 1, 2,
+                    json -> fail("Duplicate keys must not reach the caller validator")));
+            assertFalse(jdbc.events.contains("commit"));
+            assertOrder("rollback", "auto:true", "close");
+        }
+    }
+
     @Test void uncheckedValidatorFailureAlsoRollsBack() {
         IllegalStateException rejected = new IllegalStateException("Bad response semantics");
         assertSame(rejected, assertThrows(IllegalStateException.class,

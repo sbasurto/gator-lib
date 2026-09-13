@@ -17,8 +17,6 @@
 package gator.lib.db;
 
 import com.google.gson.Gson;
-import com.google.gson.JsonParser;
-import com.google.gson.JsonParseException;
 import com.google.gson.Strictness;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonToken;
@@ -44,7 +42,10 @@ import java.io.Reader;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.ArrayDeque;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.SynchronousQueue;
@@ -235,9 +236,28 @@ public class ADO {
             throw new SQLException("Transaction JSON exceeds size limit", "22000");
         try (JsonReader parser = new JsonReader(new StringReader(json))) {
             parser.setStrictness(Strictness.STRICT);
-            if (!JsonParser.parseReader(parser).isJsonObject() || parser.peek() != JsonToken.END_DOCUMENT)
+            if (parser.peek() != JsonToken.BEGIN_OBJECT)
                 throw new SQLException("Transaction returned invalid JSON object", "22000");
-        } catch (IOException | JsonParseException failure) {
+            // Gson's tree parser silently keeps the last duplicate key, even in
+            // STRICT mode. Walk tokens with per-container decoded key sets first.
+            ArrayDeque<Set<String>> containers = new ArrayDeque<>();
+            while (parser.peek() != JsonToken.END_DOCUMENT) {
+                switch (parser.peek()) {
+                    case BEGIN_OBJECT -> { parser.beginObject(); containers.push(new HashSet<>()); }
+                    case BEGIN_ARRAY -> { parser.beginArray(); containers.push(new HashSet<>()); }
+                    case END_OBJECT -> { parser.endObject(); containers.pop(); }
+                    case END_ARRAY -> { parser.endArray(); containers.pop(); }
+                    case NAME -> {
+                        if (!containers.peek().add(parser.nextName()))
+                            throw new SQLException("Transaction returned duplicate JSON keys", "22000");
+                    }
+                    case STRING, NUMBER -> parser.nextString();
+                    case BOOLEAN -> parser.nextBoolean();
+                    case NULL -> parser.nextNull();
+                    default -> throw new SQLException("Transaction returned invalid JSON object", "22000");
+                }
+            }
+        } catch (IOException | IllegalStateException failure) {
             throw new SQLException("Transaction returned invalid JSON object", "22000", failure);
         }
         return json;
