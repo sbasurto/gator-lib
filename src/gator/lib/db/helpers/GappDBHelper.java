@@ -84,12 +84,25 @@ public class GappDBHelper {
         ado.close();
         return dbOut;
     }
-    public ArrayList<HashMap<String, String>> execute (GappSQLStatement gappSQLStmt) {                
+    public ArrayList<HashMap<String, String>> execute (GappSQLStatement gappSQLStmt) {
         ado.executePreparedStmt(gappSQLStmt);
         ArrayList<HashMap<String, String>> res = ado.getResult2();
         logs.logIt(this.getClass().getCanonicalName(), "Executed: " + gappSQLStmt.getQueryStrForLog(), "security", "execute", 0);
         ado.close();
         return res;
+    }
+
+    /** One connection/commit boundary; no legacy execute(), close(), replication or retries. */
+    public String executeJsonTransaction(GappSQLStatement statement, int lockTimeoutMillis,
+                                         int statementTimeoutMillis) throws SQLException {
+        return ado.executeJsonTransaction(statement, lockTimeoutMillis, statementTimeoutMillis);
+    }
+
+    /** The caller's response validation runs before commit. */
+    public String executeJsonTransaction(GappSQLStatement statement, int lockTimeoutMillis,
+                                         int statementTimeoutMillis,
+                                         ADO.JsonTransactionValidator validator) throws SQLException {
+        return ado.executeJsonTransaction(statement, lockTimeoutMillis, statementTimeoutMillis, validator);
     }
 
     /**

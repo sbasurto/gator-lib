@@ -17,6 +17,9 @@
 package gator.lib.db;
 
 import com.google.gson.Gson;
+import com.google.gson.Strictness;
+import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonToken;
 import gator.lib.db.conf.GappDBConfFile;
 import gator.lib.db.dbms.MysqlDB;
 import gator.lib.db.dbms.OracleDB;
@@ -31,15 +34,25 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.Reader;
+import java.io.StringReader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.ArrayDeque;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import javax.naming.InitialContext;
+import javax.naming.NamingException;
 import javax.sql.DataSource;
 import org.postgresql.PGConnection;
 
@@ -59,6 +72,202 @@ import org.postgresql.PGConnection;
  * @version     1.0, 06 Jun 2013
  */
 public class ADO {
+    private static final int MAX_TRANSACTION_JSON_BYTES = 1_048_576;
+
+    @FunctionalInterface
+    public interface JsonTransactionValidator {
+        /** Reject unsafe/domain-invalid response envelopes before commit. */
+        void validate(String json) throws SQLException;
+    }
+
+    /**
+     * Executes one scalar JSON-object query on a fresh JNDI connection, without
+     * replication or retry. Call the validator overload for business envelopes.
+     * A thrown exception after commit was attempted does not prove rollback:
+     * callers must recover the operation's durable result, never retry blindly.
+     */
+    public String executeJsonTransaction(GappSQLStatement statement, int lockTimeoutMillis,
+                                         int statementTimeoutMillis) throws SQLException {
+        return executeJsonTransaction(statement, lockTimeoutMillis, statementTimeoutMillis, json -> {});
+    }
+
+    /** Returns only after validation, commit and safe connection cleanup. */
+    public String executeJsonTransaction(GappSQLStatement statement, int lockTimeoutMillis,
+                                         int statementTimeoutMillis,
+                                         JsonTransactionValidator validator) throws SQLException {
+        Objects.requireNonNull(statement, "statement");
+        Objects.requireNonNull(validator, "validator");
+        if (lockTimeoutMillis <= 0 || statementTimeoutMillis <= 0)
+            throw new IllegalArgumentException("Transaction timeouts must be positive");
+        if (connection != null && !connection.isClosed() && !connection.getAutoCommit())
+            throw new SQLException("An existing caller transaction cannot be used");
+
+        // No startPool4DBKind fallback: a failed pool acquisition must not silently
+        // select another connection path. This connection never enters legacy ADO state.
+        Connection transaction = acquireJsonTransactionConnection();
+        boolean started = false;
+        boolean ended = false;
+        boolean commitAttempted = false;
+        boolean discard = true;
+        int originalIsolation = Connection.TRANSACTION_READ_COMMITTED;
+        boolean originalReadOnly = false;
+        Throwable primary = null;
+        try {
+            if (!transaction.getAutoCommit())
+                throw new SQLException("Pool connection has an existing transaction");
+            originalIsolation = transaction.getTransactionIsolation();
+            originalReadOnly = transaction.isReadOnly();
+            started = true;
+            transaction.setAutoCommit(false);
+            discard = false;
+            transaction.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
+            transaction.setReadOnly(false);
+            try (Statement settings = transaction.createStatement()) {
+                settings.execute("SET LOCAL lock_timeout = '" + lockTimeoutMillis + "ms'");
+                settings.execute("SET LOCAL statement_timeout = '" + statementTimeoutMillis + "ms'");
+            }
+            String json;
+            try (PreparedStatement prepared = transaction.prepareStatement(statement.getQuery())) {
+                for (int i = 0; i < statement.getInParams().size(); i++)
+                    prepared.setString(i + 1, statement.getInParams().get(i));
+                try (ResultSet result = prepared.executeQuery()) {
+                    if (result.getMetaData().getColumnCount() != 1 || !result.next())
+                        throw new SQLException("Transaction must return one scalar JSON object", "22000");
+                    json = readTransactionJson(result);
+                    if (result.next())
+                        throw new SQLException("Transaction returned multiple rows", "22000");
+                }
+            }
+            validator.validate(json);
+            commitAttempted = true;
+            transaction.commit();
+            ended = true;
+            return json;
+        } catch (SQLException | RuntimeException | Error failure) {
+            primary = failure;
+            // Even a subsequent successful rollback cannot disambiguate a lost
+            // COMMIT acknowledgement; discard that physical connection regardless.
+            if (commitAttempted) discard = true;
+            if (started && !ended) {
+                try {
+                    transaction.rollback();
+                    ended = true;
+                } catch (SQLException | RuntimeException | Error rollbackFailure) {
+                    failure.addSuppressed(rollbackFailure);
+                    discard = true;
+                }
+            }
+            throw failure;
+        } finally {
+            Throwable cleanup = null;
+            if (!discard && ended) {
+                try {
+                    transaction.setTransactionIsolation(originalIsolation);
+                    transaction.setReadOnly(originalReadOnly);
+                    // Enabling autocommit may COMMIT an open transaction. It is
+                    // only safe after a known end and all previous resets succeeded.
+                    transaction.setAutoCommit(true);
+                } catch (SQLException | RuntimeException | Error resetFailure) {
+                    cleanup = resetFailure;
+                    discard = true;
+                }
+            }
+            if (discard) {
+                try { transaction.abort(Runnable::run); }
+                catch (SQLException | RuntimeException | Error abortFailure) {
+                    cleanup = appendTransactionFailure(cleanup, abortFailure);
+                }
+            }
+            try { transaction.close(); }
+            catch (SQLException | RuntimeException | Error closeFailure) {
+                cleanup = appendTransactionFailure(cleanup, closeFailure);
+                if (!discard) {
+                    try { transaction.abort(Runnable::run); }
+                    catch (SQLException | RuntimeException | Error abortFailure) {
+                        cleanup = appendTransactionFailure(cleanup, abortFailure);
+                    }
+                }
+            }
+            if (cleanup != null) {
+                if (primary != null) primary.addSuppressed(cleanup);
+                else if (cleanup instanceof SQLException failure) throw failure;
+                else if (cleanup instanceof RuntimeException failure) throw failure;
+                else throw (Error) cleanup;
+            }
+        }
+    }
+
+    private Connection acquireJsonTransactionConnection() throws SQLException {
+        DataSource source;
+        try {
+            InitialContext naming = new InitialContext();
+            try {
+                Object resource = naming.lookup("java:/comp/env/" + adoDBConfigFile.getSID());
+                if (!(resource instanceof DataSource dataSource))
+                    throw new SQLException("Transaction data source is not available");
+                source = dataSource;
+            } finally {
+                naming.close();
+            }
+        } catch (NamingException failure) {
+            throw new SQLException("Transaction data source is not available", failure);
+        }
+        Connection acquired = source.getConnection();
+        if (acquired == null) throw new SQLException("Transaction connection is not available");
+        return acquired;
+    }
+
+    private static String readTransactionJson(ResultSet result) throws SQLException {
+        StringBuilder text = new StringBuilder();
+        try (Reader reader = result.getCharacterStream(1)) {
+            if (reader == null) throw new SQLException("Transaction returned null JSON", "22000");
+            char[] buffer = new char[4096];
+            int count;
+            while ((count = reader.read(buffer)) != -1) {
+                if (text.length() + count > MAX_TRANSACTION_JSON_BYTES)
+                    throw new SQLException("Transaction JSON exceeds size limit", "22000");
+                text.append(buffer, 0, count);
+            }
+        } catch (IOException failure) {
+            throw new SQLException("Unable to read transaction JSON", "22000", failure);
+        }
+        String json = text.toString();
+        if (json.getBytes(StandardCharsets.UTF_8).length > MAX_TRANSACTION_JSON_BYTES)
+            throw new SQLException("Transaction JSON exceeds size limit", "22000");
+        try (JsonReader parser = new JsonReader(new StringReader(json))) {
+            parser.setStrictness(Strictness.STRICT);
+            if (parser.peek() != JsonToken.BEGIN_OBJECT)
+                throw new SQLException("Transaction returned invalid JSON object", "22000");
+            // Gson's tree parser silently keeps the last duplicate key, even in
+            // STRICT mode. Walk tokens with per-container decoded key sets first.
+            ArrayDeque<Set<String>> containers = new ArrayDeque<>();
+            while (parser.peek() != JsonToken.END_DOCUMENT) {
+                switch (parser.peek()) {
+                    case BEGIN_OBJECT -> { parser.beginObject(); containers.push(new HashSet<>()); }
+                    case BEGIN_ARRAY -> { parser.beginArray(); containers.push(new HashSet<>()); }
+                    case END_OBJECT -> { parser.endObject(); containers.pop(); }
+                    case END_ARRAY -> { parser.endArray(); containers.pop(); }
+                    case NAME -> {
+                        if (!containers.peek().add(parser.nextName()))
+                            throw new SQLException("Transaction returned duplicate JSON keys", "22000");
+                    }
+                    case STRING, NUMBER -> parser.nextString();
+                    case BOOLEAN -> parser.nextBoolean();
+                    case NULL -> parser.nextNull();
+                    default -> throw new SQLException("Transaction returned invalid JSON object", "22000");
+                }
+            }
+        } catch (IOException | IllegalStateException failure) {
+            throw new SQLException("Transaction returned invalid JSON object", "22000", failure);
+        }
+        return json;
+    }
+
+    private static Throwable appendTransactionFailure(Throwable previous, Throwable next) {
+        if (previous == null) return next;
+        previous.addSuppressed(next);
+        return previous;
+    }
         /**
          * Connection unique identifier.
          */

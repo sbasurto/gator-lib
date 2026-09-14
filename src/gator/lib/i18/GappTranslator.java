@@ -19,7 +19,10 @@ package gator.lib.i18;
 // msgfmt --java2 -d src/ -r gator.lib.i18.Messages -l es po/es.po
 
 import com.google.gson.Gson;
-import gator.lib.logs.GappLogging;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonElement;
+import com.google.gson.Strictness;
+import java.util.Locale;
 import org.xnap.commons.i18n.*;
 
 /**
@@ -47,22 +50,15 @@ public class GappTranslator {
 	 */
 	public static String FRENCH = "fr";
         
-        private GappLogging logs = new GappLogging();
 	
 	/**
 	 * Constructor
 	 * @param language  The language that will be used to translate.
 	 */
 	public GappTranslator(String language){
-		if(language.contains("es")){                        
-			i18n = I18nFactory.getI18n(GappTranslator.class, "gator.lib.i18.Messages_es");
-		}
-		if(language.contains("en")){
-			i18n = I18nFactory.getI18n(GappTranslator.class, "gator.lib.i18.Messages_en");
-		}
-		/*if(language.contains("fr")){
-			i18n = I18nFactory.getI18n(GappTranslator.class, "gator.lib.i18.Messages_fr");
-		}*/
+                String normalized = language == null ? "" : language.trim().toLowerCase(Locale.ROOT).replace('_', '-');
+                String bundle = normalized.equals("en") || normalized.startsWith("en-") ? "en" : "es";
+                i18n = I18nFactory.getI18n(GappTranslator.class, "gator.lib.i18.Messages_" + bundle);
 	}
         /**
          * Constructor to use when the i18n object is already defined.
@@ -90,21 +86,32 @@ public class GappTranslator {
 	 * @return The JSON string with the translated strings.
 	 */
 	public String getTranslated(String jsonstr) {
-		try {                        
-                        Gson gson = new Gson();
-                        GappPhrases phrases = gson.fromJson(jsonstr, GappPhrases.class);
-                        for(GappPhrase phrase: phrases.getPhrases()) {
-                                if(!phrase.getPhrase().equals("")) {
-                                        phrase.setTrasnlation(i18n);
-                                }
-                        }
-                        String phrasesDone = gson.toJson(phrases);
-                        logs.logIt(this.getClass().getCanonicalName(), "Translation done: " + phrasesDone, "system", "getTranslated", 0);
-			return phrasesDone;
-		} catch(Exception e) {
-                        logs.logIt(this.getClass().getCanonicalName(), logs.getStackTraceString(e), "system", "getTranslated", 0);
-			return jsonstr;
-		}
+                if (jsonstr == null || jsonstr.isBlank()) throw new IllegalArgumentException("Missing translation request");
+                Gson gson = new GsonBuilder().setStrictness(Strictness.STRICT).create();
+                JsonElement document;
+                try {
+                        document = gson.fromJson(jsonstr, JsonElement.class);
+                } catch (com.google.gson.JsonParseException ex) {
+                        throw new IllegalArgumentException("Invalid translation request");
+                }
+                if (document == null || !document.isJsonObject()) throw new IllegalArgumentException("Invalid translation request");
+                JsonElement entries = document.getAsJsonObject().get("phrases");
+                if (entries == null || !entries.isJsonArray() || entries.getAsJsonArray().isEmpty()) {
+                        throw new IllegalArgumentException("Missing phrases");
+                }
+                for (JsonElement entry : entries.getAsJsonArray()) {
+                        JsonElement phrase = entry.isJsonObject() ? entry.getAsJsonObject().get("phrase") : null;
+                        if (phrase == null || !phrase.isJsonPrimitive() || !phrase.getAsJsonPrimitive().isString()
+                                || phrase.getAsString().isBlank()) throw new IllegalArgumentException("Invalid phrase");
+                }
+                GappPhrases phrases;
+                try {
+                        phrases = gson.fromJson(document, GappPhrases.class);
+                } catch (com.google.gson.JsonParseException ex) {
+                        throw new IllegalArgumentException("Invalid translation request");
+                }
+                for (GappPhrase phrase : phrases.getPhrases()) phrase.setTrasnlation(i18n);
+                return gson.toJson(phrases);
 	}
         
         /**
