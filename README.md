@@ -34,6 +34,20 @@ El JAR se genera en `build/libs/gator-lib-1.0.0-SNAPSHOT.jar`.
 - `gator.lib.io.barcodes`: códigos QR y lineales.
 - `gator.lib.net`: cookies, endpoints e impresión.
 
+### Contrato de traducción
+
+`GappTranslator` acepta `es`/`en` y variantes regionales (por ejemplo `es-MX`,
+`en_US`); normaliza espacios y mayúsculas y usa español para idiomas ausentes o
+no soportados. Los catálogos se suministran por separado en `gator-lib-i18.jar`.
+Una clave sin traducción conserva el texto original; singular y plural mantienen
+el contrato existente. `getTranslated` exige JSON estricto con `phrases` como
+arreglo no vacío de objetos con `phrase` de tipo string no blanco. Una entrada
+inválida lanza `IllegalArgumentException`; no se devuelve como traducción exitosa.
+No se registran frases ni respuestas en el log del traductor.
+
+La prueba integrada del traductor y servlet se ejecuta desde `gator-lib-web` con
+`./gradlew translationSelfTest` y también forma parte de `./gradlew check`.
+
 ## Configuración sensible
 
 El repositorio no contiene credenciales. La integración remota de llaves usa:

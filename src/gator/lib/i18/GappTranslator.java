@@ -21,6 +21,7 @@ package gator.lib.i18;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
+import com.google.gson.JsonParseException;
 import com.google.gson.Strictness;
 import java.util.Locale;
 import org.xnap.commons.i18n.*;
@@ -50,20 +51,22 @@ public class GappTranslator {
 	 */
 	public static String FRENCH = "fr";
         
+        private static final Gson GSON = new GsonBuilder().setStrictness(Strictness.STRICT).create();
 	
 	/**
 	 * Constructor
 	 * @param language  The language that will be used to translate.
 	 */
 	public GappTranslator(String language){
-                String normalized = language == null ? "" : language.trim().toLowerCase(Locale.ROOT).replace('_', '-');
-                String bundle = normalized.equals("en") || normalized.startsWith("en-") ? "en" : "es";
+                String tag = language == null ? "" : language.strip().replace('_', '-');
+                String normalized = Locale.forLanguageTag(tag).getLanguage();
+                String bundle = normalized.equals("en") ? "en" : "es";
                 i18n = I18nFactory.getI18n(GappTranslator.class, "gator.lib.i18.Messages_" + bundle);
 	}
         /**
          * Constructor to use when the i18n object is already defined.
          */
-	public GappTranslator() {}
+	public GappTranslator() { this("es"); }
 	/**
 	 * This function allow to get the instance of factory
 	 * @return The instanced factory.
@@ -75,44 +78,45 @@ public class GappTranslator {
 	/**
 	 * This function translate any string contained on JSON object
 	 *
-	 * @param jsonstr  The JSON string that will be used to create the object, in order to translate correctly the 
-	 * 		   object must contain a object called translation that will contain an array of objects to be
-	 * 		   translated with an index starting at 0 called translate0, translate1, ..., translateN.
+	 * @param jsonstr JSON containing a nonempty phrases array of objects with nonblank string phrases.
          *                  {"phrases":
          *                      [
-         *                          {"phrase":"Execution successful","translation":"Ejecución exitosa","pluarTranslation":"Ejecución exitosa"}
+         *                          {"phrase":"Execution successful"}
          *                      ]
          *                  }
 	 * @return The JSON string with the translated strings.
+         * @throws IllegalArgumentException if the input does not satisfy the translation contract.
 	 */
-	public String getTranslated(String jsonstr) {
-                if (jsonstr == null || jsonstr.isBlank()) throw new IllegalArgumentException("Missing translation request");
-                Gson gson = new GsonBuilder().setStrictness(Strictness.STRICT).create();
-                JsonElement document;
+        public String getTranslated(String jsonstr) {
+                JsonElement root;
                 try {
-                        document = gson.fromJson(jsonstr, JsonElement.class);
-                } catch (com.google.gson.JsonParseException ex) {
+                        root = GSON.fromJson(jsonstr, JsonElement.class);
+                } catch (JsonParseException e) {
                         throw new IllegalArgumentException("Invalid translation request");
                 }
-                if (document == null || !document.isJsonObject()) throw new IllegalArgumentException("Invalid translation request");
-                JsonElement entries = document.getAsJsonObject().get("phrases");
-                if (entries == null || !entries.isJsonArray() || entries.getAsJsonArray().isEmpty()) {
-                        throw new IllegalArgumentException("Missing phrases");
+                if (root == null || !root.isJsonObject()) {
+                        throw new IllegalArgumentException("Invalid translation request");
                 }
-                for (JsonElement entry : entries.getAsJsonArray()) {
-                        JsonElement phrase = entry.isJsonObject() ? entry.getAsJsonObject().get("phrase") : null;
+                JsonElement items = root.getAsJsonObject().get("phrases");
+                if (items == null || !items.isJsonArray() || items.getAsJsonArray().isEmpty()) {
+                        throw new IllegalArgumentException("Invalid translation request");
+                }
+                for (JsonElement item : items.getAsJsonArray()) {
+                        JsonElement phrase = item.isJsonObject() ? item.getAsJsonObject().get("phrase") : null;
                         if (phrase == null || !phrase.isJsonPrimitive() || !phrase.getAsJsonPrimitive().isString()
-                                || phrase.getAsString().isBlank()) throw new IllegalArgumentException("Invalid phrase");
+                                        || phrase.getAsString().isBlank()) {
+                                throw new IllegalArgumentException("Invalid translation request");
+                        }
                 }
                 GappPhrases phrases;
                 try {
-                        phrases = gson.fromJson(document, GappPhrases.class);
-                } catch (com.google.gson.JsonParseException ex) {
+                        phrases = GSON.fromJson(root, GappPhrases.class);
+                } catch (JsonParseException e) {
                         throw new IllegalArgumentException("Invalid translation request");
                 }
                 for (GappPhrase phrase : phrases.getPhrases()) phrase.setTrasnlation(i18n);
-                return gson.toJson(phrases);
-	}
+                return GSON.toJson(phrases);
+        }
         
         /**
          * Translate a singular string.
@@ -122,7 +126,9 @@ public class GappTranslator {
          * @return The translation or the original string.
          */
         public String translate(String toTranslate) {
-                return i18n.tr(toTranslate) == null?toTranslate:i18n.tr(toTranslate);
+                if (toTranslate == null) return "";
+                String translated = i18n.tr(toTranslate);
+                return translated == null ? toTranslate : translated;
         }
         
         /**
