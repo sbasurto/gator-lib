@@ -109,3 +109,8 @@ cualquier corrección de lógica no trivial y evita dependencias innecesarias.
 Gator Lib se distribuye bajo GNU GPL versión 3 o posterior. Algunos archivos
 conservan avisos compatibles LGPL, Apache 2.0 y GPL versión 2 o posterior.
 Consulta `LICENSE` y `NOTICE`.
+
+Los objetos `GappSessionData`, `GappCuenta`, `GappCuentas` y `GappBodega`
+viven en `gator.lib.session`, sin dependencia de Shiro. Conservan sus campos
+y el formato JSON de `sessionData`; `gator.lib.sec.session.GappSessionData`
+sigue siendo el objeto distinto de pares clave/valor.
