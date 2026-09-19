@@ -160,6 +160,18 @@ public class GappAuth {
                         throw new IllegalStateException("SHA-512 is unavailable", ex);
                 }
         }
+        /** Legacy salted SHA-512 format: salt only on the first round, UTF-8, lowercase hex. */
+        public static String sha512(String phrase, String salt, int iterations) {
+                try {
+                        MessageDigest digest = MessageDigest.getInstance("SHA-512");
+                        digest.update(salt.getBytes(StandardCharsets.UTF_8));
+                        byte[] value = digest.digest(phrase.getBytes(StandardCharsets.UTF_8));
+                        for (int i = 1; i < iterations; i++) value = digest.digest(value);
+                        return HexFormat.of().formatHex(value);
+                } catch (NoSuchAlgorithmException ex) {
+                        throw new IllegalStateException("SHA-512 is unavailable", ex);
+                }
+        }
         /**
          * Allow to get user attributes.
          * 
