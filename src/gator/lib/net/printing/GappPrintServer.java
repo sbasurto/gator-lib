@@ -22,6 +22,9 @@ import javax.swing.JTextArea;
 */
 
 public class GappPrintServer implements Runnable {
+    private static final java.util.concurrent.ScheduledExecutorService DEADLINES=java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread thread=new Thread(r,"print-write-deadlines");thread.setDaemon(true);return thread;
+    });
 	private PrintWriter     out;
 	private BufferedReader  in;
 	private Socket          socket = null;
@@ -49,33 +52,27 @@ public class GappPrintServer implements Runnable {
 	* run Method just run the runnable class
 	*/
         @Override
-	public synchronized void run(){
-		String inLine;
-		try{
-			out = new PrintWriter(socket.getOutputStream(),true);
-			in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-			eventLog.append("[Server] : Peticion de impresion desde " + socket.getInetAddress() +"\n");                
-			eventLog.append("[Server] : Leyendo \n");
-			while((inLine = in.readLine()) != null){
-                                if(this.debugLevel >= 200) {
-                                    eventLog.append("[Server] : Linea leída \n");
-                                    eventLog.append("[Server] : " + inLine + " \n");
-                                }
-				doPrint(inLine);
-			}
-			eventLog.append("[Server] : Terminó de leer \n");                                
-			eventLog.append("[Server] : La impresion ha sido enviada\n");
-			out.println("0");
-		}catch(IOException e){
-			eventLog.append("[Server] : Error de E/S  " + e.toString() + "\n");
-			out.println("1");
-			return;
-		}catch(NullPointerException e){
-			eventLog.append("[Server] : Error de un nulo " + e.toString() + "\n");
-			out.println("1");
-			return;
-		}
-	}
+    public synchronized void run() {
+        try (Socket connection=socket) {
+            connection.setSoTimeout(20000);
+            out=new PrintWriter(connection.getOutputStream(),true,java.nio.charset.StandardCharsets.UTF_8);
+            in=new BufferedReader(new InputStreamReader(connection.getInputStream(),java.nio.charset.StandardCharsets.UTF_8));
+            try {
+                StringBuilder line=new StringBuilder(); int c; boolean received=false;
+                while((c=in.read())!=-1) {
+                    if(c=='\n') { if(!line.isEmpty()){doPrint(line.toString());received=true;line.setLength(0);} }
+                    else {line.append((char)c);if(line.length()>1048576)throw new IOException("Print request too large");}
+                }
+                if(!line.isEmpty()){doPrint(line.toString());received=true;}
+                if(!received)throw new IOException("Empty print request");
+                out.println("0");
+            } catch(Exception failure) {
+                eventLog.append("[Server] Envío no confirmado: "+failure.getClass().getSimpleName()+"\n");
+                out.println("1");
+            }
+        } catch(IOException failure) {eventLog.append("[Server] Error de conexión\n");}
+    }
+
 	/**
 	* doPrint function receives a JSON string that is specified as follows and 
 	* process the printing to any valid network or share printer.
@@ -94,7 +91,7 @@ public class GappPrintServer implements Runnable {
         *                                   "secuenciaEscape":"kaklkalsklaskkl"
         *                               }				
 	*/
-	private void doPrint(String str4print){
+	private void doPrint(String str4print) throws IOException {
                 Gson gson = new Gson();
                 JsonObject jsonObject = gson.fromJson(str4print, JsonObject.class);              
                 
@@ -107,7 +104,7 @@ public class GappPrintServer implements Runnable {
                 os = os.toLowerCase();
                 String tipoImpresion = jsonObject.get("tipo") == null?"none":jsonObject.get("tipo").getAsString();
                 String printerPort = jsonObject.get("printerPort") == null?"none":jsonObject.get("printerPort").getAsString();
-                String comando = jsonObject.get("comando").isJsonNull()?"none":jsonObject.get("comando").getAsString();
+                String comando = (jsonObject.get("comando") == null || jsonObject.get("comando").isJsonNull())?"none":jsonObject.get("comando").getAsString();
                 String secuenciaEscape = jsonObject.get("secuenciaEscape") == null?"none":jsonObject.get("secuenciaEscape").getAsString();
                 String fileName = jsonObject.get("file") == null?"none":jsonObject.get("file").getAsString();
                 String fileDir  = jsonObject.get("directory") == null?"none":jsonObject.get("directory").getAsString();
@@ -122,64 +119,37 @@ public class GappPrintServer implements Runnable {
                 printLog("Debug", "puerto: " + printerPort, 0, 5);
                 printLog("Debug", "comando: " + comando, 0, 5);
                 printLog("Debug", "secuencia de escape: " + secuenciaEscape, 0, 5);
-                gappFiles.setDir(GappFiles.PRINT_DIR);
-                gappFiles.write2File(secuenciaEscape, gappUUIdFactory.getUUID());
+                if(secuenciaEscape.contains("^FXGATOR_"))throw new IOException("Unresolved label file reference");
                 if(tipoImpresion.equals("red")) {
-                        printLog("Server", "Impresión en red inicio", 0, 5);
+                    try (Socket target=new Socket()) {
+                        target.connect(new InetSocketAddress(printerIP,Integer.parseInt(printerPort)),5000);
+                        target.setSoTimeout(5000);
+                        // SO_TIMEOUT only covers reads: close on deadline to interrupt a blocked write.
+                        var deadline=DEADLINES.schedule(() -> {try {target.close();}catch(IOException ignored) {}},20,java.util.concurrent.TimeUnit.SECONDS);
                         try {
-                                Socket socketInterno = new Socket(printerIP, Integer.parseInt(printerPort));  
-                                socketInterno.setSoTimeout(1000);
-                                PrintWriter outBuffer = new PrintWriter(socketInterno.getOutputStream(), true);                
-                                BufferedReader inBuffer = new BufferedReader(new InputStreamReader(socketInterno.getInputStream()));
-                                outBuffer.println(secuenciaEscape);
-                                outBuffer.close();
-                                inBuffer.close();
-                                socketInterno.close();
-                        } catch(Exception e){
-                                printLog("Server", "Excepción Host Desconocido:" + printerIP + ":" + printerPort, 0, 5);                            
-                        }
-                        printLog("Server", "Impresión en red finalizada", 0, 5);
+                            target.getOutputStream().write((secuenciaEscape+"\n").getBytes(java.nio.charset.Charset.defaultCharset()));
+                            target.getOutputStream().flush();
+                            if(target.isClosed())throw new IOException("Print write timed out");
+                        } finally {deadline.cancel(false);}
+                    }
                 } else {
-                        Process proc;
-                        if(!fileName.equals("none") && !fileDir.equals("none") && !fileName.equals("") && !fileDir.equals("")) {
-                                gappFiles.setDir(fileDir);
-                                gappFiles.setFileName(fileName);
-                        }
-                        if(os.equals("windows")) {
-                                printLog("Server", "Sistema Operativo:" + os, 0, 5);
-                                printLog("Debug", "Es WINDOWS", 0, 5);
-				/*String netCmdDel   = "cmd /c net use /delete LPT2 ";
-				String netCmd   = "cmd /c net use LPT2 " + printerIP + "  /user:\"" + usuario + "\" "+  password;
-				String copyCmd  = "cmd /c copy "+ Files.getFileName() +" LPT2";*/
-                                comando = comando.replaceAll("::usuario::", usuario);
-                                comando = comando.replaceAll("::password::", password);
-                                comando = comando.replaceAll("::printerIP::", printerIP);
-                                comando = comando.replaceAll("::archivo::", gappFiles.getFileName());
-				printLog("Debug", "Comando ejecutado \"" + comando + "\"", 1, 5);				
-                                try {
-                                    proc = Runtime.getRuntime().exec(comando);
-                                    printLog("Server", "Proceso ejecutado " + proc, 0, 5);
-                                    /*proc = Runtime.getRuntime().exec(netCmd);
-                                    printLog("Server", "Proceso ejecutado " + proc, 0, 5);
-                                    proc = Runtime.getRuntime().exec(copyCmd);
-                                    printLog("Server", "Proceso ejecutado " + proc, 0, 5);*/
-                                } catch (Exception e) {
-                                    printLog("Server", "Excepción:" + gappLogging.getStackTraceString(e) + ":" + printerPort, 0, 5);                            
-                                }
-                        } else if (os.equals("linux")) {                                
-                                printLog("Server", "Sistema Operativo:" + os, 0, 5);
-                                String copyCmd = "lp -d " + printerIP + " " + gappFiles.getFileName() ;						
-                                printLog("Debug", "Comandos ejecutados \"" + copyCmd + "\"", 1, 5);
-                                try {
-                                    proc = Runtime.getRuntime().exec(new String[] {"sh","-c",copyCmd});
-                                    printLog("Server", "Proceso ejecutado " + proc, 0, 5);
-                                } catch (Exception e) {
-                                    printLog("Server", "Excepción:" + gappLogging.getStackTraceString(e) + ":" + printerPort, 0, 5);                            
-                                }                                						                                
-                        } else {
-                                printLog("Server", "Sistema Operativo Desconocido " + os, 0, 5);
-                        }
-                }				
+                    java.nio.file.Path directory=java.nio.file.Path.of(GappFiles.PRINT_DIR);
+                    java.nio.file.Files.createDirectories(directory);
+                    java.nio.file.Path printFile=java.nio.file.Files.createTempFile(directory,"label-",".zpl");
+                    java.nio.file.Files.writeString(printFile,secuenciaEscape,java.nio.charset.Charset.defaultCharset());
+                    Process process;
+                    if(os.equals("windows")) {
+                        comando=comando.replace("::usuario::",usuario).replace("::password::",password)
+                            .replace("::printerIP::",printerIP).replace("::archivo::",printFile.toString());
+                        process=Runtime.getRuntime().exec(comando);
+                    } else if(os.equals("linux")) {
+                        process=new ProcessBuilder("lp","-d",printerIP,printFile.toString()).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start();
+                    } else throw new IOException("Unsupported print OS");
+                    try {
+                        if(!process.waitFor(20,java.util.concurrent.TimeUnit.SECONDS)){process.destroyForcibly();throw new IOException("Print command timed out");}
+                        if(process.exitValue()!=0)throw new IOException("Print command failed");
+                    } catch(InterruptedException interrupted){Thread.currentThread().interrupt();throw new IOException("Print interrupted",interrupted);}
+                }
 	}	
 	/**
 	* Logs depending on debug level
