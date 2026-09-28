@@ -433,7 +433,7 @@ public class ADO {
 		if(this.connection == null) startPool4DBKind();
 		result2 = new ArrayList<>();
 		try {
-                        logs.logIt(this.getClass().getCanonicalName(),"Parametros: " + String.join(",", gappSQLStmt.getInParams()),  "ADO", "executePreparedStmt", 0);
+                        logs.logIt(this.getClass().getCanonicalName(),"Sentencia: " + gappSQLStmt.getQueryStrForLog(),  "ADO", "executePreparedStmt", 0);
                         try {
                                 if(!this.connection.isValid(0)) startPool4DBKind();
                         } catch (Exception e) {
@@ -483,7 +483,7 @@ public class ADO {
 		if(this.connection == null) startPool4DBKind();
 		result2 = new ArrayList<>();
 		try {
-                        logs.logIt(this.getClass().getCanonicalName(),"Parametros: " + String.join(",", gappSQLStmt.getInParams()),  "ADO", "executePreparedStmt", 0);
+                        logs.logIt(this.getClass().getCanonicalName(),"Sentencia: " + gappSQLStmt.getQueryStrForLog(),  "ADO", "executePreparedStmt", 0);
                         try {
                                 if(!this.connection.isValid(0)) startPool4DBKind();
                         } catch (Exception e) {
@@ -553,7 +553,7 @@ public class ADO {
                         }
                         gappSQLStmt.setDbKind(adoDBConfigFile.getDbKind());
                         logs.logIt(this.getClass().getCanonicalName(),
-                                "Ejecutando: " + gappSQLStmt.getQueryStr(),
+                                "Ejecutando: " + gappSQLStmt.getQueryStrForLog(),
                                 "ADO", "execStore", 0);
 			CallableStatement stmtCallable = this.connection.prepareCall(gappSQLStmt.getQuery());
                         stmtCallable = gappSQLStmt.registerOutParams(stmtCallable);
@@ -594,7 +594,7 @@ public class ADO {
                         }
                         gappSQLStmt.setDbKind(adoDBConfigFile.getDbKind());
                         logs.logIt(this.getClass().getCanonicalName(),
-                                "Ejecutando: " + gappSQLStmt.getQueryStr(),
+                                "Ejecutando: " + gappSQLStmt.getQueryStrForLog(),
                                 "ADO", "execStoreSync", 0);
 			CallableStatement stmtCallable = this.connection.prepareCall(gappSQLStmt.getQuery());
                         stmtCallable = gappSQLStmt.registerOutParams(stmtCallable);

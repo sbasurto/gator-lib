@@ -89,7 +89,8 @@ java -Dgator.db.logParameters=true -jar aplicacion.jar
 Desactívalo eliminando la opción o usando
 `-Dgator.db.logParameters=false`, y reinicia la JVM. El valor `true` registra
 también contraseñas, tokens, identificadores y objetos de sesión; úsalo sólo
-durante el diagnóstico y protege o elimina los logs resultantes.
+durante el diagnóstico y protege o elimina los logs resultantes. Los parámetros
+de `app_fn_admon_bascula` permanecen ocultos incluso con esta opción activada.
 
 ## Política de mantenimiento
 

@@ -30,4 +30,24 @@ class GappSQLStatementLogTest {
         assertTrue(diagnostic.contains("bearer-token"));
         assertTrue(diagnostic.contains("serialized-secret"));
     }
+    @Test
+    void scaleTokenIsNeverLoggedAndBindingIsUnchanged() throws Exception {
+        GappSQLStatement statement = new GappSQLStatement();
+        statement.setStoreProcedure("public.APP_FN_ADMON_BASCULA");
+        String parameter = "{\"basculaToken\":\"scale-secret\"}";
+        statement.addParam(parameter);
+        System.setProperty("gator.db.logParameters", "true");
+        assertFalse(statement.getQueryStrForLog().contains("scale-secret"));
+        assertTrue(statement.getQueryStrForLog().contains("parameters=1"));
+        assertTrue(statement.getQueryStr().contains("scale-secret"));
+        var bound = new java.util.HashMap<Integer, String>();
+        var callable = (java.sql.CallableStatement) java.lang.reflect.Proxy.newProxyInstance(
+                getClass().getClassLoader(), new Class<?>[]{java.sql.CallableStatement.class},
+                (proxy, method, args) -> {
+                    if (method.getName().equals("setString")) bound.put((Integer) args[0], (String) args[1]);
+                    return null;
+                });
+        statement.setParameters(callable);
+        org.junit.jupiter.api.Assertions.assertEquals(parameter, bound.get(2));
+    }
 }
