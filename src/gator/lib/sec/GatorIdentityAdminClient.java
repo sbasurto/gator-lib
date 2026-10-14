@@ -29,7 +29,7 @@ public final class GatorIdentityAdminClient {
     private static final Map<String, Set<String>> FIELDS = Map.of(
             "list", Set.of("action", "first", "max"),
             "get", Set.of("action", "targetSubject"),
-            "create", Set.of("action", "username", "localUsuario", "accountId", "bodegaId", "name", "email"),
+            "create", Set.of("action", "username", "localUsuario", "accountId", "bodegaId", "name", "email", "requestId"),
             "update", Set.of("action", "targetSubject", "name", "email", "enabled"),
             "disable", Set.of("action", "targetSubject"),
             "enable", Set.of("action", "targetSubject"),

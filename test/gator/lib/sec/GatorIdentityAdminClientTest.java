@@ -53,6 +53,23 @@ class GatorIdentityAdminClientTest {
         } finally { server.stop(0); }
     }
 
+    @Test void preservesExplicitCreateRetryId() throws Exception {
+        HttpServer server=server();
+        String requestId="11111111-2222-3333-4444-555555555555";
+        server.createContext("/realms/test/gator-identity-admin",exchange->{
+            var body=com.google.gson.JsonParser.parseString(new String(exchange.getRequestBody().readAllBytes(),StandardCharsets.UTF_8)).getAsJsonObject();
+            assertEquals(requestId,body.get("requestId").getAsString());
+            byte[] response="{\"status\":\"pending\"}".getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200,response.length);exchange.getResponseBody().write(response);exchange.close();
+        });
+        server.start();
+        try {
+            JsonObject body=request("create");body.addProperty("requestId",requestId);body.addProperty("username","fixture");
+            body.addProperty("localUsuario","fixture");body.addProperty("name","Fixture");body.addProperty("email","fixture@example.invalid");
+            assertEquals("pending",new GatorIdentityAdminClient(issuer(server)).send("fixture-token",body).get("status").getAsString());
+        } finally {server.stop(0);}
+    }
+
     @Test void rejectsUntrustedUrlAndRequestFieldsBeforeSending() {
         for (String value : new String[] {"http://identity.example/realms/test", "file:///tmp/issuer", "https://user@identity.example/realms/test",
                 "https://identity.example/realms/test?host=evil", "https://identity.example/realms/test#fragment", "https://identity.example/realms/../test"})
