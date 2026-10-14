@@ -115,3 +115,13 @@ Los objetos `GappSessionData`, `GappCuenta`, `GappCuentas` y `GappBodega`
 viven en `gator.lib.session`, sin dependencia de Shiro. Conservan sus campos
 y el formato JSON de `sessionData`; `gator.lib.sec.session.GappSessionData`
 sigue siendo el objeto distinto de pares clave/valor.
+
+### Administración central de identidades
+
+`gator.lib.sec.GatorIdentityAdminClient` recibe el issuer de configuración de
+servidor y `send(accessToken, JsonObject)` llama su recurso
+`/gator-identity-admin`. No acepta destinos ni actores dentro del JSON, no sigue
+redirecciones y conserva únicamente errores sanitizados (`Failure.statusCode()`).
+La conexión tiene límite de 3 segundos; la respuesta completa, 5 segundos y 1 MiB.
+HTTPS es obligatorio; HTTP se admite únicamente para el loopback de pruebas
+aisladas. El reset y la concesión de acceso son acciones explícitas separadas.
