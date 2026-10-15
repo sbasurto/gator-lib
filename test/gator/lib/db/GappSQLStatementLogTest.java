@@ -6,6 +6,15 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 class GappSQLStatementLogTest {
+    @Test void scannerCodesAndKeysAreNeverLoggedEvenDuringDiagnostics() {
+        System.setProperty("gator.db.logParameters", "true");
+        GappSQLStatement statement = new GappSQLStatement();
+        statement.setQuery("select public.APP_FN_MOBILE_SCAN(?) as scanner");
+        statement.addParam("{\"text\":\"private-code\",\"keyHash\":\"private-key\"}");
+        assertFalse(statement.getQueryStrForLog().contains("private-code"));
+        assertFalse(statement.getQueryStrForLog().contains("private-key"));
+        assertFalse(statement.isReplicable());
+    }
 
     @AfterEach
     void clearProperty() {

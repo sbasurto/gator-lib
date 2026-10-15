@@ -34,7 +34,7 @@ public final class GatorOidcAssignments {
                 reader.beginObject();
                 while (reader.hasNext()) {
                     String context = reader.nextName();
-                    if (!context.matches("gator[ews][A-Za-z0-9_-]+")) throw new IllegalArgumentException();
+                    if (!context.matches("[A-Za-z0-9][A-Za-z0-9_-]{0,127}")) throw new IllegalArgumentException();
                     Target target;
                     if (reader.peek() == JsonToken.STRING) {
                         target = new Target(reader.nextString(), "");

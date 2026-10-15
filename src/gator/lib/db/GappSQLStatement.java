@@ -338,6 +338,7 @@ public class GappSQLStatement {
         public String getQueryStrForLog() {
                 return Boolean.getBoolean("gator.db.logParameters")
                         && !getQuery().toLowerCase(java.util.Locale.ROOT).contains("app_fn_admon_bascula")
+                        && !getQuery().toLowerCase(java.util.Locale.ROOT).contains("app_fn_mobile_scan")
                         ? getQueryStr()
                         : this.getQuery() + " [parameters=" + this.inParams.size() + "]";
         }
